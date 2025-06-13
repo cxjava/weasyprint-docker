@@ -1,4 +1,4 @@
-FROM alpine:3.21 AS alpine-upgrader
+FROM alpine:3 AS alpine-upgrader
 RUN apk upgrade --no-cache
 
 FROM scratch AS alpine-upgraded
