@@ -1,0 +1,51 @@
+name: build docker image and release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: "Bump tag type: major, minor, patch. default: minor"
+        required: true
+        default: "minor"
+
+permissions: write-all
+jobs:
+  release:
+    name: Docker image and release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Bump tag version
+        id: bumpTag
+        uses: anothrNick/github-tag-action@1.73.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WITH_V: true
+          DRY_RUN: true
+          DEFAULT_BUMP: "${{ github.event.inputs.bump_type }}"
+      - name: Bump tag locally
+        run: git tag ${{ steps.bumpTag.outputs.new_tag }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Landing Page Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ github.repository }}:${{ steps.bumpTag.outputs.new_tag }}
+            ${{ github.repository }}:latest
