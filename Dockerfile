@@ -27,9 +27,7 @@ RUN abuild-keygen -a -i -n
 
 COPY --chown=packager:packager packages/ ./
 
-RUN cd py3-cssselect2 && \
-    abuild -r && \
-    cd ../py3-weasyprint && \
+RUN cd py3-weasyprint && \
     abuild -r
 
 
@@ -43,7 +41,8 @@ RUN --mount=from=pkg-builder,source=/home/packager/packages/work,target=/package
     apk add --no-cache --repository /packages \
     font-liberation \
     font-liberation-sans-narrow \
-    ttf-linux-libertine \
+    font-carlito \
+    font-freefont \
     python3 \
     py3-aiohttp \
     py3-weasyprint
