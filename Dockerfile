@@ -15,8 +15,6 @@ WORKDIR /build
 # --no-binary :all: forces downloading source tarballs and compiling them,
 # ensuring we don't use pre-built binary wheels.
 RUN pip wheel --no-cache-dir --no-binary :all: --wheel-dir=/build/wheels \
-    pydyf==0.12.1 \
-    tinycss2==1.5.1 \
     weasyprint==67.0 \
     aiohttp==3.13.2
 
