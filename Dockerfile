@@ -1,59 +1,56 @@
-FROM alpine:3 AS alpine-upgrader
-RUN apk upgrade --no-cache
+FROM python:3.12-slim AS builder
 
-FROM scratch AS alpine-upgraded
-COPY --from=alpine-upgrader / /
-CMD ["/bin/sh"]
+# 1. Install build dependencies (compilers and headers)
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libffi-dev \
+    libjpeg-dev \
+    zlib1g-dev \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
+WORKDIR /build
 
-FROM alpine-upgraded AS pkg-builder
+# 2. Compile from source
+# --no-binary :all: forces downloading source tarballs and compiling them,
+# ensuring we don't use pre-built binary wheels.
+RUN pip wheel --no-cache-dir --no-binary :all: --wheel-dir=/build/wheels \
+    pydyf==0.12.1 \
+    tinycss2==1.5.1 \
+    weasyprint==67.0 \
+    aiohttp==3.13.2
 
-RUN apk -U add \
-    sudo \
-    alpine-sdk \
-    apkbuild-pypi
+# ---------------------------------------------------------------------------
 
-RUN mkdir -p /var/cache/distfiles && \
-    adduser -D packager && \
-    addgroup packager abuild && \
-    chgrp abuild /var/cache/distfiles && \
-    chmod g+w /var/cache/distfiles && \
-    echo "packager ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+FROM python:3.12-slim
 
-WORKDIR /work
-USER packager
+# 3. Install runtime dependencies (libraries and fonts)
+RUN apt-get update && apt-get install -y \
+    libcairo2 \
+    libpango-1.0-0 \
+    libpangoft2-1.0-0 \
+    libgdk-pixbuf2.0-0 \
+    libffi-dev \
+    libjpeg-dev \
+    zlib1g-dev \
+    fonts-liberation \
+    fonts-liberation2 \
+    fonts-linuxlibertine \
+    fonts-freefont-ttf \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN abuild-keygen -a -i -n
-
-COPY --chown=packager:packager packages/ ./
-
-RUN cd py3-tinycss2 && \
-    abuild -r && \
-    cd ../py3-weasyprint && \
-    abuild -r
-
-
-FROM alpine-upgraded
-
-RUN addgroup --system weasyprint \
-    && adduser --system --ingroup weasyprint weasyprint
-
-RUN --mount=from=pkg-builder,source=/home/packager/packages/work,target=/packages \
-    --mount=from=pkg-builder,source=/etc/apk/keys,target=/etc/apk/keys \
-    apk add --no-cache --repository /packages \
-    font-liberation \
-    font-liberation-sans-narrow \
-    font-carlito \
-    font-freefont \
-    python3 \
-    py3-aiohttp \
-    py3-weasyprint
-
-ENV PYTHONUNBUFFERED=1
 WORKDIR /app
-USER weasyprint
+
+# 4. Copy compiled wheels from builder stage
+COPY --from=builder /build/wheels /wheels
+
+# 5. Install the compiled wheels
+RUN pip install --no-cache-dir --no-index --find-links=/wheels \
+    weasyprint \
+    aiohttp
+
+COPY server.py .
 
 EXPOSE 8080
 
-COPY server.py .
 CMD ["python3", "server.py"]
